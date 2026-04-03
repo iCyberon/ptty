@@ -21,6 +21,7 @@ type keyMap struct {
 	Clear  key.Binding
 	Pause  key.Binding
 	SelectAll key.Binding
+	Update    key.Binding
 }
 
 var keys = keyMap{
@@ -95,5 +96,9 @@ var keys = keyMap{
 	SelectAll: key.NewBinding(
 		key.WithKeys("A"),
 		key.WithHelp("A", "select all"),
+	),
+	Update: key.NewBinding(
+		key.WithKeys("U"),
+		key.WithHelp("U", "update"),
 	),
 }

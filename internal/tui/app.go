@@ -1,14 +1,18 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
+
+	selfupdate "github.com/creativeprojects/go-selfupdate"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/iCyberon/ptty/internal/scanner"
+	"github.com/iCyberon/ptty/internal/updater"
 )
 
 const (
@@ -42,6 +46,30 @@ type killResultMsg struct {
 	err error
 }
 
+type updateCheckMsg struct {
+	result *updater.CheckResult
+	err    error
+}
+
+type updateAppliedMsg struct {
+	version string
+	err     error
+}
+
+type postUpdateMsg struct {
+	version string
+}
+
+type hideUpdateBarMsg struct{}
+
+type updateBarKind int
+
+const (
+	updateBarInfo updateBarKind = iota
+	updateBarSuccess
+	updateBarError
+)
+
 type AppModel struct {
 	scanner   scanner.Scanner
 	activeTab int
@@ -49,19 +77,31 @@ type AppModel struct {
 	height    int
 	showAll   bool
 
-	ports   *PortsModel
-	procs   *ProcessesModel
-	watch   *WatchModel
-	clean   *CleanModel
+	ports *PortsModel
+	procs *ProcessesModel
+	watch *WatchModel
+	clean *CleanModel
+
+	up              *updater.Updater
+	version         string
+	updateNotice    string
+	updateBarStyle  updateBarKind
+	showUpdateBar   bool
+	updateAvailable bool
+	updateVersion   string
+	updateRelease   *selfupdate.Release
 
 	err error
 }
 
-func NewApp(s scanner.Scanner, initialTab int) AppModel {
+func NewApp(s scanner.Scanner, initialTab int, version string) AppModel {
+	up, _ := updater.New(version)
 	m := AppModel{
 		scanner:   s,
 		activeTab: initialTab,
 		showAll:   false,
+		up:        up,
+		version:   version,
 	}
 	m.ports = NewPortsModel()
 	m.procs = NewProcessesModel()
@@ -71,13 +111,18 @@ func NewApp(s scanner.Scanner, initialTab int) AppModel {
 }
 
 func (m AppModel) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		m.scanPorts(),
 		m.scanProcesses(),
 		m.scanOrphans(),
 		m.tickCmd(),
 		m.watch.Init(),
-	)
+		m.checkPostUpdate(),
+	}
+	if m.up != nil {
+		cmds = append(cmds, m.checkForUpdate())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -94,6 +139,20 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					break
 				}
 				return m, tea.Quit
+			case key.Matches(msg, keys.Update):
+				if m.updateAvailable && m.updateRelease != nil {
+					_, canWrite := updater.CanWrite()
+					if !canWrite {
+						m.updateNotice = "Cannot update: permission denied. Run: sudo ptty update"
+						m.updateBarStyle = updateBarError
+						m.showUpdateBar = true
+						return m, nil
+					}
+					m.updateNotice = fmt.Sprintf("Updating to v%s...", m.updateVersion)
+					m.updateBarStyle = updateBarInfo
+					return m, m.applyUpdate()
+				}
+				return m, nil
 			case key.Matches(msg, keys.Tab1):
 				m.activeTab = tabPorts
 				return m, nil
@@ -167,6 +226,48 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, m.scanPorts(), m.scanProcesses(), m.scanOrphans())
 		return m, tea.Batch(cmds...)
+
+	case postUpdateMsg:
+		if msg.version != "" {
+			m.updateNotice = fmt.Sprintf("Updated to v%s!", msg.version)
+			m.updateBarStyle = updateBarSuccess
+			m.showUpdateBar = true
+			return m, tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+				return hideUpdateBarMsg{}
+			})
+		}
+		return m, nil
+
+	case updateCheckMsg:
+		if msg.err != nil || msg.result == nil {
+			return m, nil
+		}
+		m.updateAvailable = true
+		m.updateVersion = msg.result.Version
+		m.updateRelease = msg.result.Release
+		m.showUpdateBar = true
+		m.updateBarStyle = updateBarInfo
+		_, canWrite := updater.CanWrite()
+		if canWrite {
+			m.updateNotice = fmt.Sprintf("v%s available — press U to update", msg.result.Version)
+		} else {
+			m.updateNotice = fmt.Sprintf("v%s available — run: sudo ptty update", msg.result.Version)
+		}
+		return m, nil
+
+	case updateAppliedMsg:
+		if msg.err != nil {
+			m.updateNotice = fmt.Sprintf("Update failed: %s", msg.err)
+			m.updateBarStyle = updateBarError
+			m.showUpdateBar = true
+			return m, nil
+		}
+		return m, nil
+
+	case hideUpdateBarMsg:
+		m.showUpdateBar = false
+		m.updateNotice = ""
+		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -195,9 +296,29 @@ func (m AppModel) View() string {
 	var b strings.Builder
 
 	portCount := len(m.ports.data)
-	header := headerStyle.Render("⚡ ptty")
-	subtitle := subtitleStyle.Render(fmt.Sprintf(" — %d listening ports", portCount))
-	b.WriteString(header + subtitle + "\n\n")
+	left := headerStyle.Render("⚡ ptty") + subtitleStyle.Render(fmt.Sprintf(" — %d listening ports", portCount))
+
+	var right string
+	if m.showUpdateBar && m.updateNotice != "" {
+		var style lipgloss.Style
+		switch m.updateBarStyle {
+		case updateBarSuccess:
+			style = updateBarSuccessStyle
+		case updateBarError:
+			style = updateBarErrorStyle
+		default:
+			style = updateBarStyle
+		}
+		right = style.Render(m.updateNotice)
+	} else {
+		right = dimStyle.Render("v" + m.version)
+	}
+
+	headerGap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+	if headerGap < 1 {
+		headerGap = 1
+	}
+	b.WriteString(left + strings.Repeat(" ", headerGap) + right + "\n\n")
 
 	var tabs []string
 	for i, name := range tabNames {
@@ -268,6 +389,9 @@ func (m AppModel) renderFooter() string {
 		parts = append(parts, helpKeyStyle.Render("x")+" "+helpDescStyle.Render("kill"))
 	}
 
+	if m.updateAvailable {
+		parts = append(parts, helpKeyStyle.Render("U")+" "+helpDescStyle.Render("update"))
+	}
 	parts = append(parts, helpKeyStyle.Render("q")+" "+helpDescStyle.Render("quit"))
 
 	allStr := "dev only"
@@ -313,4 +437,43 @@ func (m AppModel) tickCmd() tea.Cmd {
 	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+func (m AppModel) checkPostUpdate() tea.Cmd {
+	return func() tea.Msg {
+		version := updater.ReadAndClearUpdatedVersion()
+		return postUpdateMsg{version: version}
+	}
+}
+
+func (m AppModel) checkForUpdate() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		result, err := m.up.CheckLatest(ctx)
+		return updateCheckMsg{result: result, err: err}
+	}
+}
+
+func (m AppModel) applyUpdate() tea.Cmd {
+	release := m.updateRelease
+	version := m.updateVersion
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancel()
+
+		if err := m.up.Apply(ctx, release); err != nil {
+			return updateAppliedMsg{err: err}
+		}
+
+		if err := updater.WriteUpdatedVersion(version); err != nil {
+			return updateAppliedMsg{err: err}
+		}
+
+		if err := updater.Restart(); err != nil {
+			return updateAppliedMsg{version: version, err: err}
+		}
+
+		return updateAppliedMsg{version: version}
+	}
 }

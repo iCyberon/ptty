@@ -25,16 +25,38 @@ ptty scans your system for listening TCP ports, identifies what framework each p
 
 ## Install
 
+**macOS / Linux** (recommended):
+
+```sh
+curl -sSL https://raw.githubusercontent.com/iCyberon/ptty/main/install.sh | sh
+```
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/iCyberon/ptty/main/install.ps1 | iex
+```
+
+**Go install**:
+
 ```sh
 go install github.com/iCyberon/ptty/cmd/ptty@latest
 ```
 
-Or build from source:
+**From source**:
 
 ```sh
 git clone https://github.com/iCyberon/ptty.git
 cd ptty
 make build
+```
+
+### Updating
+
+ptty checks for updates on every launch and shows a notification in the header. Press `U` to update instantly, or run:
+
+```sh
+ptty update
 ```
 
 ## Usage
@@ -58,6 +80,7 @@ Just run `ptty` — you get a full interactive terminal UI with four tabs:
 | `x` | Kill process |
 | `/` | Filter |
 | `a` | Toggle all / dev-only |
+| `U` | Update to latest version |
 | `q` / `Esc` | Quit |
 
 ### Port Detail
@@ -97,6 +120,7 @@ ptty ps                # all dev processes with CPU/memory
 ptty detail 3000       # deep-dive on a port
 ptty clean             # find and kill orphaned processes
 ptty watch --json      # NDJSON stream of port changes
+ptty update            # update to latest version
 ```
 
 When piped, ptty auto-detects non-TTY and outputs JSON:

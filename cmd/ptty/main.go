@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/iCyberon/ptty/internal/cli"
 	"github.com/iCyberon/ptty/internal/scanner"
 	"github.com/iCyberon/ptty/internal/tui"
+	"github.com/iCyberon/ptty/internal/updater"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
@@ -36,7 +39,7 @@ func main() {
 				cli.PrintJSON(ports)
 				return nil
 			}
-			return runTUI(0)
+			return runTUI(0, version)
 		},
 	}
 
@@ -49,6 +52,7 @@ func main() {
 	rootCmd.AddCommand(psCmd())
 	rootCmd.AddCommand(cleanCmd())
 	rootCmd.AddCommand(watchCmd())
+	rootCmd.AddCommand(updateCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -159,14 +163,52 @@ func watchCmd() *cobra.Command {
 			if jsonOutput {
 				return cli.RunWatchJSON(newScanner(), !showAll)
 			}
-			return runTUI(2) // Watch tab
+			return runTUI(2, version) // Watch tab
 		},
 	}
 }
 
-func runTUI(initialTab int) error {
+func updateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update",
+		Short: "Update ptty to the latest version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			up, err := updater.New(version)
+			if err != nil {
+				return err
+			}
+
+			fmt.Println("Checking for updates...")
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			result, err := up.CheckLatest(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to check for updates: %w", err)
+			}
+			if result == nil {
+				fmt.Printf("Already up to date (v%s)\n", version)
+				return nil
+			}
+
+			fmt.Printf("Updating to v%s...\n", result.Version)
+
+			ctx, cancel = context.WithTimeout(context.Background(), 120*time.Second)
+			defer cancel()
+
+			if err := up.Apply(ctx, result.Release); err != nil {
+				return fmt.Errorf("update failed: %w", err)
+			}
+
+			fmt.Printf("Updated to v%s!\n", result.Version)
+			return nil
+		},
+	}
+}
+
+func runTUI(initialTab int, ver string) error {
 	s := newScanner()
-	app := tui.NewApp(s, initialTab)
+	app := tui.NewApp(s, initialTab, ver)
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	_, err := p.Run()
 	return err

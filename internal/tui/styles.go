@@ -93,6 +93,17 @@ var (
 
 	branchStyle = lipgloss.NewStyle().Foreground(colorPurple)
 	dimStyle    = lipgloss.NewStyle().Foreground(colorSubtle)
+
+	updateBarStyle = lipgloss.NewStyle().
+			Foreground(colorGreen).
+			Bold(true)
+
+	updateBarSuccessStyle = lipgloss.NewStyle().
+				Foreground(colorBlue).
+				Bold(true)
+
+	updateBarErrorStyle = lipgloss.NewStyle().
+				Foreground(colorRed)
 )
 
 var frameworkColors = map[string]lipgloss.Color{
