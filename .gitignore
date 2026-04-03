@@ -1,0 +1,27 @@
+# Binaries and object files
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Test and coverage artifacts
+*.test
+*.out
+*.coverprofile
+coverage.*
+profile.cov
+
+# Claude Code
+.claude/
+
+# Dependency directories
+vendor/
+
+# Internal docs
+docs/
+
+# Local development files
+go.work
+go.work.sum

@@ -1,0 +1,53 @@
+version: 2
+
+project_name: ptty
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./... -short
+
+builds:
+  - main: ./cmd/ptty
+    binary: ptty
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  github:
+    owner: iCyberon
+    name: ptty
+  draft: false
+  prerelease: auto
+  name_template: "{{.Tag}}"
