@@ -77,7 +77,7 @@ choose_install_dir() {
     fi
     printf "    3) Custom path\n\n"
     printf "  Choice [1]: "
-    read -r choice
+    read -r choice < /dev/tty
 
     case "$choice" in
         ""|1) INSTALL_DIR="$default_dir" ;;
@@ -90,7 +90,7 @@ choose_install_dir() {
             ;;
         3)
             printf "  Path: "
-            read -r custom_path
+            read -r custom_path < /dev/tty
             INSTALL_DIR="$custom_path"
             ;;
         *)  INSTALL_DIR="$default_dir" ;;
