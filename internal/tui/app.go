@@ -90,7 +90,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, keys.Quit):
 				return m, tea.Quit
 			case key.Matches(msg, keys.Esc):
-				if m.ports.detail != nil || m.clean.state == cleanConfirming {
+				if m.ports.detail != nil || m.procs.detail != nil || m.clean.state == cleanConfirming {
 					break
 				}
 				return m, tea.Quit
@@ -107,6 +107,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activeTab = tabClean
 				cmds = append(cmds, m.scanOrphans())
 				return m, tea.Batch(cmds...)
+			case key.Matches(msg, keys.NextTab):
+				m.activeTab = (m.activeTab + 1) % len(tabNames)
+				if m.activeTab == tabClean {
+					cmds = append(cmds, m.scanOrphans())
+					return m, tea.Batch(cmds...)
+				}
+				return m, nil
 			case key.Matches(msg, keys.All):
 				m.showAll = !m.showAll
 				cmds = append(cmds, m.scanPorts(), m.scanProcesses())
@@ -129,6 +136,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 		} else {
 			m.ports.SetData(msg.ports)
+			m.procs.SetPortData(msg.ports)
 			m.watch.UpdatePorts(msg.ports)
 		}
 		return m, nil
@@ -166,7 +174,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tabPorts:
 		cmd = m.ports.Update(msg, m.scanner)
 	case tabProcesses:
-		cmd = m.procs.Update(msg)
+		cmd = m.procs.Update(msg, m.scanner)
 	case tabWatch:
 		cmd = m.watch.Update(msg, m.scanner)
 	case tabClean:
@@ -241,8 +249,16 @@ func (m AppModel) renderFooter() string {
 			parts = append(parts, helpKeyStyle.Render("a")+" "+helpDescStyle.Render("all"))
 		}
 	case tabProcesses:
-		parts = append(parts, helpKeyStyle.Render("↑↓")+" "+helpDescStyle.Render("navigate"))
-		parts = append(parts, helpKeyStyle.Render("a")+" "+helpDescStyle.Render("all"))
+		if m.procs.detail != nil {
+			parts = append(parts, helpKeyStyle.Render("x")+" "+helpDescStyle.Render("kill"))
+			parts = append(parts, helpKeyStyle.Render("esc")+" "+helpDescStyle.Render("back"))
+			parts = append(parts, helpKeyStyle.Render("r")+" "+helpDescStyle.Render("refresh"))
+		} else {
+			parts = append(parts, helpKeyStyle.Render("↑↓")+" "+helpDescStyle.Render("navigate"))
+			parts = append(parts, helpKeyStyle.Render("enter")+" "+helpDescStyle.Render("detail"))
+			parts = append(parts, helpKeyStyle.Render("x")+" "+helpDescStyle.Render("kill"))
+			parts = append(parts, helpKeyStyle.Render("a")+" "+helpDescStyle.Render("all"))
+		}
 	case tabWatch:
 		parts = append(parts, helpKeyStyle.Render("c")+" "+helpDescStyle.Render("clear"))
 		parts = append(parts, helpKeyStyle.Render("p")+" "+helpDescStyle.Render("pause"))

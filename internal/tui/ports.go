@@ -74,7 +74,7 @@ func (m *PortsModel) Update(msg tea.Msg, s scanner.Scanner) tea.Cmd {
 	}
 
 	if m.filtering {
-		return m.updateFilter(msg)
+		return m.updateFilter(msg, s)
 	}
 
 	switch msg := msg.(type) {
@@ -108,7 +108,7 @@ func (m *PortsModel) Update(msg tea.Msg, s scanner.Scanner) tea.Cmd {
 	return nil
 }
 
-func (m *PortsModel) updateFilter(msg tea.Msg) tea.Cmd {
+func (m *PortsModel) updateFilter(msg tea.Msg, s scanner.Scanner) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -118,10 +118,21 @@ func (m *PortsModel) updateFilter(msg tea.Msg) tea.Cmd {
 			m.filter.Blur()
 			m.applyFilter()
 			return nil
+		case key.Matches(msg, keys.Up):
+			if m.cursor > 0 {
+				m.cursor--
+			}
+			return nil
+		case key.Matches(msg, keys.Down):
+			if m.cursor < len(m.filtered)-1 {
+				m.cursor++
+			}
+			return nil
 		case key.Matches(msg, keys.Enter):
-			m.filtering = false
-			m.filter.Blur()
-			m.applyFilter()
+			if m.cursor < len(m.filtered) {
+				info := m.filtered[m.cursor]
+				return m.fetchDetail(info.Port, s)
+			}
 			return nil
 		}
 	}
@@ -129,6 +140,9 @@ func (m *PortsModel) updateFilter(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	m.filter, cmd = m.filter.Update(msg)
 	m.applyFilter()
+	if m.cursor >= len(m.filtered) {
+		m.cursor = max(0, len(m.filtered)-1)
+	}
 	return cmd
 }
 
@@ -150,6 +164,10 @@ func (m *PortsModel) updateDetail(msg tea.Msg, s scanner.Scanner) tea.Cmd {
 		switch {
 		case key.Matches(msg, keys.Esc):
 			m.detail = nil
+			if m.filtering {
+				m.filter.Focus()
+				return textinput.Blink
+			}
 			return nil
 		case key.Matches(msg, keys.Kill):
 			pid := m.detail.PID
@@ -185,12 +203,22 @@ func (m *PortsModel) viewTable() string {
 
 	const (
 		colPort      = 8
-		colProcess   = 22
 		colPID       = 8
 		colProject   = 16
 		colFramework = 14
 		colUptime    = 10
+		colStatus    = 12
+		indent       = 2
+		minProcess   = 16
+		maxProcess   = 40
 	)
+	fixedCols := colPort + colPID + colProject + colFramework + colUptime + colStatus + indent
+	colProcess := m.width - fixedCols
+	if colProcess < minProcess {
+		colProcess = minProcess
+	} else if colProcess > maxProcess {
+		colProcess = maxProcess
+	}
 
 	header := "  " +
 		tableHeaderStyle.Render(pad("PORT", colPort)) +

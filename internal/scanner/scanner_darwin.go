@@ -40,6 +40,7 @@ func (s *darwinScanner) ListPorts(devOnly bool) ([]PortInfo, error) {
 	}
 
 	psInfo := batchPsInfo(pids)
+	psComm := batchPsComm(pids)
 	cwds := batchCwd(pids)
 	dockerInfo := batchDockerInfo()
 
@@ -58,6 +59,10 @@ func (s *darwinScanner) ListPorts(devOnly bool) ([]PortInfo, error) {
 			ProcessName: e.processName,
 			Command:     e.command,
 			Status:      StatusHealthy,
+		}
+
+		if name, ok := psComm[e.pid]; ok {
+			info.ProcessName = name
 		}
 
 		if ps, ok := psInfo[e.pid]; ok {
@@ -129,6 +134,20 @@ func (s *darwinScanner) GetAllProcesses(devOnly bool) ([]PortInfo, error) {
 	}
 
 	procs := parseAllProcesses(raw)
+
+	// kernel process name
+	pids := make([]int, len(procs))
+	for i, p := range procs {
+		pids[i] = p.PID
+	}
+	if comms := batchPsComm(pids); comms != nil {
+		for i, p := range procs {
+			if name, ok := comms[p.PID]; ok {
+				procs[i].ProcessName = name
+			}
+		}
+	}
+
 	if !devOnly {
 		return procs, nil
 	}
@@ -148,7 +167,21 @@ func (s *darwinScanner) FindOrphans() ([]PortInfo, error) {
 		return nil, fmt.Errorf("ps: %w", err)
 	}
 
-	return parseOrphans(raw), nil
+	orphans := parseOrphans(raw)
+
+	pids := make([]int, len(orphans))
+	for i, o := range orphans {
+		pids[i] = o.PID
+	}
+	if comms := batchPsComm(pids); comms != nil {
+		for i, o := range orphans {
+			if name, ok := comms[o.PID]; ok {
+				orphans[i].ProcessName = name
+			}
+		}
+	}
+
+	return orphans, nil
 }
 
 func (s *darwinScanner) KillProcess(pid int) error {
@@ -197,7 +230,7 @@ func parseLsofOutput(raw string) []rawPortEntry {
 			continue
 		}
 
-		processName := fields[0]
+		processName := unescapeString(fields[0])
 		pid, err := strconv.Atoi(fields[1])
 		if err != nil {
 			continue
@@ -239,6 +272,38 @@ func parsePortFromLsofName(name string) int {
 		return 0
 	}
 	return port
+}
+
+// batchPsComm gets the process name (p_comm) for a batch of PIDs.
+func batchPsComm(pids []int) map[int]string {
+	if len(pids) == 0 {
+		return nil
+	}
+	pidStrs := make([]string, len(pids))
+	for i, pid := range pids {
+		pidStrs[i] = strconv.Itoa(pid)
+	}
+	raw, err := execCommand("ps", "-p", strings.Join(pidStrs, ","), "-o", "pid=,ucomm=")
+	if err != nil {
+		return nil
+	}
+	result := make(map[int]string)
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		result[pid] = strings.Join(fields[1:], " ")
+	}
+	return result
 }
 
 func batchPsInfo(pids []int) map[int]psInfo {

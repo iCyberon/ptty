@@ -3,11 +3,12 @@ package tui
 import "github.com/charmbracelet/bubbles/key"
 
 type keyMap struct {
-	Tab1   key.Binding
-	Tab2   key.Binding
-	Tab3   key.Binding
-	Tab4   key.Binding
-	Quit   key.Binding
+	Tab1    key.Binding
+	Tab2    key.Binding
+	Tab3    key.Binding
+	Tab4    key.Binding
+	NextTab key.Binding
+	Quit    key.Binding
 	Help   key.Binding
 	Up     key.Binding
 	Down   key.Binding
@@ -38,6 +39,10 @@ var keys = keyMap{
 	Tab4: key.NewBinding(
 		key.WithKeys("4"),
 		key.WithHelp("4", "clean"),
+	),
+	NextTab: key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "next tab"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),

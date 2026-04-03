@@ -166,11 +166,21 @@ func (m *CleanModel) View() string {
 	}
 
 	const (
-		colCheck   = 5
-		colPID     = 8
-		colProcess = 22
-		colMemory  = 10
+		colCheck  = 5
+		colPID    = 8
+		colMemory = 10
+		colStatus = 12
+		indent    = 2
+		minProcess = 16
+		maxProcess = 40
 	)
+	fixedCols := colCheck + colPID + colMemory + colStatus + indent
+	colProcess := m.width - fixedCols
+	if colProcess < minProcess {
+		colProcess = minProcess
+	} else if colProcess > maxProcess {
+		colProcess = maxProcess
+	}
 
 	header := "  " +
 		pad(" ", colCheck) +

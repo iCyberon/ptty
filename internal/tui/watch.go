@@ -136,9 +136,19 @@ func (m *WatchModel) View() string {
 		colTime      = 10
 		colEvent     = 10
 		colPort      = 8
-		colProcess   = 20
 		colFramework = 14
+		colProject   = 16
+		indent       = 2
+		minProcess   = 16
+		maxProcess   = 40
 	)
+	fixedCols := colTime + colEvent + colPort + colFramework + colProject + indent
+	colProcess := m.width - fixedCols
+	if colProcess < minProcess {
+		colProcess = minProcess
+	} else if colProcess > maxProcess {
+		colProcess = maxProcess
+	}
 
 	header := "  " +
 		tableHeaderStyle.Render(pad("TIME", colTime)) +

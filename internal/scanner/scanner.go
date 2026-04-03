@@ -1,6 +1,30 @@
 package scanner
 
-import "time"
+import (
+	"strconv"
+	"strings"
+	"time"
+)
+
+func unescapeString(s string) string {
+	if !strings.Contains(s, `\x`) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if i+3 < len(s) && s[i] == '\\' && s[i+1] == 'x' {
+			v, err := strconv.ParseUint(s[i+2:i+4], 16, 8)
+			if err == nil {
+				b.WriteByte(byte(v))
+				i += 3
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
 
 type Status string
 
