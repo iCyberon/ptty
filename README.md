@@ -25,7 +25,14 @@ ptty scans your system for listening TCP ports, identifies what framework each p
 
 ## Install
 
-**macOS / Linux** (recommended):
+**Homebrew** (macOS / Linux):
+
+```sh
+brew tap iCyberon/tap
+brew install ptty
+```
+
+**macOS / Linux** (script):
 
 ```sh
 curl -sSL https://raw.githubusercontent.com/iCyberon/ptty/main/install.sh | sh

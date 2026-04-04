@@ -44,6 +44,19 @@ changelog:
       - "^ci:"
       - "^chore:"
 
+brews:
+  - repository:
+      owner: iCyberon
+      name: homebrew-tap
+    directory: Formula
+    homepage: https://github.com/iCyberon/ptty
+    description: "See what's running on your ports. Framework detection, process trees, orphan cleanup."
+    license: MIT
+    install: |
+      bin.install "ptty"
+    test: |
+      system "#{bin}/ptty", "--version"
+
 release:
   github:
     owner: iCyberon
