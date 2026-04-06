@@ -20,6 +20,13 @@ var projectMarkers = []string{
 	"Makefile",
 }
 
+// projectMarkerGlobs are glob patterns for project files with variable names.
+var projectMarkerGlobs = []string{
+	"*.sln",
+	"*.csproj",
+	"*.fsproj",
+}
+
 // FindProjectRoot walks up from dir looking for project marker files.
 func FindProjectRoot(dir string) string {
 	if dir == "" {
@@ -31,6 +38,12 @@ func FindProjectRoot(dir string) string {
 		for _, marker := range projectMarkers {
 			path := filepath.Join(current, marker)
 			if _, err := os.Stat(path); err == nil {
+				return current
+			}
+		}
+		for _, pattern := range projectMarkerGlobs {
+			matches, _ := filepath.Glob(filepath.Join(current, pattern))
+			if len(matches) > 0 {
 				return current
 			}
 		}

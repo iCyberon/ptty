@@ -121,6 +121,10 @@ func detectFromProjectFiles(projectRoot string) string {
 		}
 	}
 
+	if fw := detectDotnetFramework(projectRoot); fw != "" {
+		return fw
+	}
+
 	return ""
 }
 
@@ -207,6 +211,46 @@ func detectRubyFramework(root string) string {
 	return "Ruby"
 }
 
+func detectDotnetFramework(root string) string {
+	// Check for .csproj or .fsproj files first (more specific)
+	for _, pattern := range []string{"*.csproj", "*.fsproj"} {
+		matches, _ := filepath.Glob(filepath.Join(root, pattern))
+		if len(matches) > 0 {
+			return detectDotnetFromCsproj(matches[0])
+		}
+	}
+	// Solution file means .NET but we can't determine specific framework
+	matches, _ := filepath.Glob(filepath.Join(root, "*.sln"))
+	if len(matches) > 0 {
+		return ".NET"
+	}
+	return ""
+}
+
+func detectDotnetFromCsproj(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ".NET"
+	}
+	content := string(data)
+
+	switch {
+	case strings.Contains(content, "Aspire.Hosting") || strings.Contains(content, "IsAspireHost"):
+		return ".NET Aspire"
+	case strings.Contains(content, "Microsoft.NET.Sdk.BlazorWebAssembly") || strings.Contains(content, "Microsoft.AspNetCore.Components"):
+		return "Blazor"
+	case strings.Contains(content, "UseMaui") || strings.Contains(content, "Microsoft.Maui"):
+		return ".NET MAUI"
+	case strings.Contains(content, "Microsoft.NET.Sdk.Web") || strings.Contains(content, "Microsoft.AspNetCore"):
+		return "ASP.NET Core"
+	case strings.Contains(content, "UseWPF") || strings.Contains(content, "Microsoft.NET.Sdk.WindowsDesktop"):
+		return "WPF"
+	case strings.Contains(content, "UseWindowsForms"):
+		return "WinForms"
+	}
+	return ".NET"
+}
+
 var commandKeywordMap = map[string]string{
 	"next":      "Next.js",
 	"vite":      "Vite",
@@ -227,6 +271,15 @@ var commandKeywordMap = map[string]string{
 	"spring":    "Spring",
 	"gradlew":   "Java",
 	"mvn":       "Java",
+	"dotnet":    ".NET",
+	"aspire":    ".NET Aspire",
+	"tye":       ".NET Tye",
+	"daprd":     "Dapr",
+}
+
+// commandPriority ensures more specific keywords match before general ones.
+var commandPriority = []string{
+	"aspire", "manage.py",
 }
 
 func detectFromCommand(command string) string {
@@ -234,6 +287,12 @@ func detectFromCommand(command string) string {
 		return ""
 	}
 	lower := strings.ToLower(command)
+	// Check high-priority keywords first
+	for _, keyword := range commandPriority {
+		if strings.Contains(lower, keyword) {
+			return commandKeywordMap[keyword]
+		}
+	}
 	for keyword, framework := range commandKeywordMap {
 		if strings.Contains(lower, keyword) {
 			return framework
@@ -253,7 +312,15 @@ var processNameMap = map[string]string{
 	"deno":         "Deno",
 	"bun":          "Bun",
 	"php":          "PHP",
-	"dotnet":       "dotnet",
+	"dotnet":       ".NET",
+	"dcp":          ".NET Aspire",
+	"dcpctrl":      ".NET Aspire",
+	"iisexpress":   "ASP.NET",
+	"w3wp":         "ASP.NET",
+	"mono":         "Mono",
+	"mono-sgen":    "Mono",
+	"tye":          ".NET Tye",
+	"daprd":        "Dapr",
 	"elixir":       "Elixir",
 	"beam.smp":     "Erlang/Elixir",
 	"postgres":     "PostgreSQL",

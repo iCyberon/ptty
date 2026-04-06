@@ -19,6 +19,8 @@ var blocklist = []string{
 var allowlist = []string{
 	"node", "python", "python3", "ruby", "java", "go", "cargo",
 	"deno", "bun", "npm", "yarn", "pnpm", "php", "dotnet",
+	"dcp", "dcpctrl", "iisexpress", "w3wp",
+	"mono", "mono-sgen", "tye", "daprd", "msbuild",
 	"elixir", "erlang", "beam.smp", "mix",
 	"uvicorn", "gunicorn", "flask", "django",
 	"rails", "puma", "unicorn", "sidekiq",
@@ -54,6 +56,7 @@ func IsDevProcess(processName, command string) bool {
 		"cargo run", "deno", "bun run", "npm ", "yarn ", "pnpm ",
 		"flask", "django", "uvicorn", "rails", "spring",
 		"webpack", "vite", "next", "nuxt", "angular",
+		"dotnet", "aspire",
 		"docker", "postgres", "redis", "mongo", "mysql",
 	}
 	for _, kw := range devKeywords {

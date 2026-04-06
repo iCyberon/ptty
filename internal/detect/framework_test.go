@@ -144,6 +144,125 @@ func TestDetectFrameworkIntegration(t *testing.T) {
 	}
 }
 
+func TestDetectDotnetFramework(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		content  string
+		expected string
+	}{
+		{
+			"ASP.NET Core project",
+			"WebApp.csproj",
+			`<Project Sdk="Microsoft.NET.Sdk.Web">
+				<PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+			</Project>`,
+			"ASP.NET Core",
+		},
+		{
+			"Aspire AppHost",
+			"AppHost.csproj",
+			`<Project Sdk="Microsoft.NET.Sdk">
+				<PropertyGroup><IsAspireHost>true</IsAspireHost></PropertyGroup>
+				<ItemGroup><PackageReference Include="Aspire.Hosting" /></ItemGroup>
+			</Project>`,
+			".NET Aspire",
+		},
+		{
+			"Blazor project",
+			"BlazorApp.csproj",
+			`<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+				<PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+			</Project>`,
+			"Blazor",
+		},
+		{
+			"MAUI project",
+			"MauiApp.csproj",
+			`<Project Sdk="Microsoft.NET.Sdk">
+				<PropertyGroup><UseMaui>true</UseMaui></PropertyGroup>
+			</Project>`,
+			".NET MAUI",
+		},
+		{
+			"Console app",
+			"ConsoleApp.csproj",
+			`<Project Sdk="Microsoft.NET.Sdk">
+				<PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+			</Project>`,
+			".NET",
+		},
+		{
+			"Solution file only",
+			"MyApp.sln",
+			"Microsoft Visual Studio Solution File",
+			".NET",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			os.WriteFile(filepath.Join(dir, tt.filename), []byte(tt.content), 0644)
+
+			got := detectDotnetFramework(dir)
+			if got != tt.expected {
+				t.Errorf("detectDotnetFramework() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestDetectDotnetFromCommand(t *testing.T) {
+	tests := []struct {
+		command  string
+		expected string
+	}{
+		{"dotnet run", ".NET"},
+		{"dotnet watch run", ".NET"},
+		{"/Users/user/.nuget/packages/aspire.hosting.orchestration.osx-arm64/13.0.0/tools/ext/dcpctrl", ".NET Aspire"},
+	}
+
+	for _, tt := range tests {
+		got := detectFromCommand(tt.command)
+		if got != tt.expected {
+			t.Errorf("detectFromCommand(%q) = %q, want %q", tt.command, got, tt.expected)
+		}
+	}
+}
+
+func TestDetectDotnetProcessName(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected string
+	}{
+		{"dotnet", ".NET"},
+		{"dcp", ".NET Aspire"},
+		{"dcpctrl", ".NET Aspire"},
+	}
+
+	for _, tt := range tests {
+		got := detectFromProcessName(tt.name)
+		if got != tt.expected {
+			t.Errorf("detectFromProcessName(%q) = %q, want %q", tt.name, got, tt.expected)
+		}
+	}
+}
+
+func TestDetectFrameworkAspireIntegration(t *testing.T) {
+	// Simulate Aspire scenario: dcpctrl process with Aspire AppHost CWD
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "AppHost.csproj"),
+		[]byte(`<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><PackageReference Include="Aspire.Hosting" /></ItemGroup></Project>`), 0644)
+
+	got := DetectFramework("", dir,
+		"/Users/user/.nuget/packages/aspire.hosting.orchestration.osx-arm64/13.0.0/tools/ext/dcpctrl",
+		"dcpctrl", "")
+	if got != ".NET Aspire" {
+		t.Errorf("DetectFramework for Aspire project = %q, want %q", got, ".NET Aspire")
+	}
+}
+
 func TestDetectPythonFramework(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "requirements.txt"),
