@@ -17,6 +17,17 @@ var projectMarkers = []string{
 	"build.gradle.kts",
 	"composer.json",
 	"mix.exs",
+	"pubspec.yaml",
+	"Package.swift",
+	"build.sbt",
+	"stack.yaml",
+	"shard.yml",
+	"gleam.toml",
+	"dune-project",
+	"cpanfile",
+	"deps.edn",
+	"project.clj",
+	"build.zig",
 	"Makefile",
 }
 
@@ -25,6 +36,7 @@ var projectMarkerGlobs = []string{
 	"*.sln",
 	"*.csproj",
 	"*.fsproj",
+	"*.cabal",
 }
 
 // FindProjectRoot walks up from dir looking for project marker files.
