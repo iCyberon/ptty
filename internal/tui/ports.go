@@ -111,39 +111,74 @@ func (m *PortsModel) Update(msg tea.Msg, s scanner.Scanner) tea.Cmd {
 func (m *PortsModel) updateFilter(msg tea.Msg, s scanner.Scanner) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, keys.Esc):
+		// Esc always clears filter and exits filter mode
+		if key.Matches(msg, keys.Esc) {
 			m.filtering = false
 			m.filter.SetValue("")
 			m.filter.Blur()
 			m.applyFilter()
 			return nil
+		}
+
+		if m.filter.Focused() {
+			// Search bar is active — typing goes to the input
+			switch {
+			case key.Matches(msg, keys.Down):
+				m.filter.Blur()
+				return nil
+			case key.Matches(msg, keys.Up):
+				m.filter.Blur()
+				if m.cursor > 0 {
+					m.cursor--
+				}
+				return nil
+			case key.Matches(msg, keys.Enter):
+				if m.cursor < len(m.filtered) {
+					info := m.filtered[m.cursor]
+					return m.fetchDetail(info.Port, s)
+				}
+				return nil
+			}
+			// All other keys go to the textinput
+			var cmd tea.Cmd
+			m.filter, cmd = m.filter.Update(msg)
+			m.applyFilter()
+			if m.cursor >= len(m.filtered) {
+				m.cursor = max(0, len(m.filtered)-1)
+			}
+			return cmd
+		}
+
+		// Search bar is visible but not focused — normal navigation
+		switch {
 		case key.Matches(msg, keys.Up):
 			if m.cursor > 0 {
 				m.cursor--
+			} else {
+				m.filter.Focus()
+				return textinput.Blink
 			}
-			return nil
 		case key.Matches(msg, keys.Down):
 			if m.cursor < len(m.filtered)-1 {
 				m.cursor++
 			}
-			return nil
 		case key.Matches(msg, keys.Enter):
 			if m.cursor < len(m.filtered) {
 				info := m.filtered[m.cursor]
 				return m.fetchDetail(info.Port, s)
 			}
-			return nil
+		case key.Matches(msg, keys.Kill):
+			if m.cursor < len(m.filtered) {
+				pid := m.filtered[m.cursor].PID
+				return killCmd(s, pid)
+			}
+		case key.Matches(msg, keys.Filter):
+			m.filter.Focus()
+			return textinput.Blink
 		}
+		return nil
 	}
-
-	var cmd tea.Cmd
-	m.filter, cmd = m.filter.Update(msg)
-	m.applyFilter()
-	if m.cursor >= len(m.filtered) {
-		m.cursor = max(0, len(m.filtered)-1)
-	}
-	return cmd
+	return nil
 }
 
 type detailFetchedMsg struct {
@@ -164,10 +199,6 @@ func (m *PortsModel) updateDetail(msg tea.Msg, s scanner.Scanner) tea.Cmd {
 		switch {
 		case key.Matches(msg, keys.Esc):
 			m.detail = nil
-			if m.filtering {
-				m.filter.Focus()
-				return textinput.Blink
-			}
 			return nil
 		case key.Matches(msg, keys.Kill):
 			pid := m.detail.PID

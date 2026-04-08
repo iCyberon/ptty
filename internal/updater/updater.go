@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	selfupdate "github.com/creativeprojects/go-selfupdate"
+	"github.com/Masterminds/semver/v3"
 )
 
 const repo = "iCyberon/ptty"
@@ -44,6 +45,10 @@ func (u *Updater) CheckLatest(ctx context.Context) (*CheckResult, error) {
 	}
 
 	current := strings.TrimPrefix(u.currentVersion, "v")
+	if _, err := semver.NewVersion(current); err != nil {
+		// Non-semver version (e.g. "dev") — skip update check
+		return nil, nil
+	}
 	if !release.GreaterThan(current) {
 		return nil, nil
 	}

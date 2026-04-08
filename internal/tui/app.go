@@ -130,12 +130,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if !m.ports.filtering {
+		if !m.ports.filtering || !m.ports.filter.Focused() {
 			switch {
 			case key.Matches(msg, keys.Quit):
 				return m, tea.Quit
 			case key.Matches(msg, keys.Esc):
-				if m.ports.detail != nil || m.procs.detail != nil || m.clean.state == cleanConfirming {
+				if m.ports.detail != nil || m.procs.detail != nil || m.clean.state == cleanConfirming || m.ports.filtering {
 					break
 				}
 				return m, tea.Quit
@@ -355,9 +355,14 @@ func (m AppModel) renderFooter() string {
 
 	switch m.activeTab {
 	case tabPorts:
-		if m.ports.filtering {
+		if m.ports.filtering && m.ports.filter.Focused() {
 			parts = append(parts, helpKeyStyle.Render("esc")+" "+helpDescStyle.Render("cancel"))
-			parts = append(parts, helpKeyStyle.Render("enter")+" "+helpDescStyle.Render("apply"))
+			parts = append(parts, helpKeyStyle.Render("↓")+" "+helpDescStyle.Render("navigate"))
+		} else if m.ports.filtering {
+			parts = append(parts, helpKeyStyle.Render("x")+" "+helpDescStyle.Render("kill"))
+			parts = append(parts, helpKeyStyle.Render("esc")+" "+helpDescStyle.Render("clear"))
+			parts = append(parts, helpKeyStyle.Render("enter")+" "+helpDescStyle.Render("detail"))
+			parts = append(parts, helpKeyStyle.Render("/")+" "+helpDescStyle.Render("edit filter"))
 		} else if m.ports.detail != nil {
 			parts = append(parts, helpKeyStyle.Render("x")+" "+helpDescStyle.Render("kill"))
 			parts = append(parts, helpKeyStyle.Render("esc")+" "+helpDescStyle.Render("back"))
